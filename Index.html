@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tes Koran Minimalis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+        
+        :root {
+            --bg-color: #0e1015;
+            --surface: #1c1f26;
+            --text-main: #ededed;
+            --text-muted: #8b949e;
+            --border: #30363d;
+            --accent: #58a6ff;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border);
+            background-color: var(--bg-color);
+            z-index: 10;
+        }
+
+        .stats { display: flex; gap: 30px; font-size: 14px; }
+        .stat-box { display: flex; flex-direction: column; }
+        .stat-label { color: var(--text-muted); font-size: 12px; margin-bottom: 4px; }
+        .stat-value { font-weight: 600; font-size: 18px; }
+
+        button {
+            background-color: var(--text-main);
+            color: var(--bg-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        button:disabled { background-color: var(--border); color: var(--text-muted); cursor: not-allowed; }
+
+        .btn-danger { background-color: #f85149; color: white; }
+
+        #board-container {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 40px;
+            display: flex;
+            gap: 40px;
+            scroll-behavior: smooth;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0.3;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .column.active, .column.done { opacity: 1; pointer-events: auto; }
+
+        .item-group { display: flex; flex-direction: column; align-items: center; margin-bottom: 8px; }
+
+        .number { font-size: 24px; font-weight: 600; height: 30px; display: flex; align-items: center; justify-content: center; }
+
+        .input-box {
+            width: 30px; height: 30px;
+            background: transparent; border: 1px solid transparent;
+            border-bottom: 2px solid var(--border);
+            color: var(--accent); font-size: 20px; font-weight: 600;
+            text-align: center; outline: none; transition: border-color 0.2s;
+        }
+
+        .input-box:focus { border-bottom-color: var(--accent); }
+        .input-box:disabled { color: var(--text-muted); }
+
+        #results {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: var(--surface); padding: 30px; border-radius: 12px;
+            border: 1px solid var(--border); text-align: center; display: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto;
+        }
+
+        #results h2 { margin-top: 0; margin-bottom: 20px; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .chart-container { width: 100%; height: 250px; margin-bottom: 20px; }
+        .action-buttons { display: flex; gap: 10px; }
+        .action-buttons button { flex: 1; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h2 style="margin:0; font-size: 18px;">Tes Koran</h2>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Riwayat Progres Sesi</div>
+        </div>
+        <div class="stats">
+            <div class="stat-box">
+                <span class="stat-label">Sisa Waktu</span>
+                <span class="stat-value" id="time-display">02:00</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Kolom Aktif</span>
+                <span class="stat-value" id="col-display">0</span>
+            </div>
+        </div>
+        <button id="start-btn" onclick="startTest()">Mulai Tes</button>
+    </header>
+
+    <div id="board-container"></div>
+
+    <div id="results">
+        <h2>Tes Selesai!</h2>
+        <div class="result-grid">
+            <div class="stat-box">
+                <span class="stat-label">Total Benar (Sesi Ini)</span>
+                <span class="stat-value" id="res-correct" style="color: #3fb950;">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Total Salah</span>
+                <span class="stat-value" id="res-wrong" style="color: #f85149;">0</span>
+            </div>
+        </div>
+        
+        <div style="text-align: left; margin-bottom: 10px; font-size: 14px; font-weight: bold; color: var(--text-muted);">
+            Grafik Peningkatan Skor Anda:
+        </div>
+        <div class="chart-container">
+            <canvas id="historyChart"></canvas>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn-danger" onclick="clearHistory()">Hapus Riwayat</button>
+            <button onclick="location.reload()">Mulai Tes Baru</button>
+        </div>
+    </div>
+
+    <script>
+        const TOTAL_COLUMNS = 20;
+        const NUMS_PER_COL = 15;
+        const TEST_DURATION = 120; 
+        const INTERVAL_TIME = 15; 
+
+        let timer;
+        let intervalTimer;
+        let timeLeft = TEST_DURATION;
+        let activeCol = 0;
+        let correctAnswers = 0;
+        let wrongAnswers = 0;
+        let isPlaying = false;
+
+        const board = document.getElementById('board-container');
+
+        function initBoard() {
+            for (let c = 0; c < TOTAL_COLUMNS; c++) {
+                const colDiv = document.createElement('div');
+                colDiv.className = 'column';
+                colDiv.id = `col-${c}`;
+                
+                let prevNum = Math.floor(Math.random() * 10);
+                
+                for (let r = 0; r < NUMS_PER_COL; r++) {
+                    const nextNum = Math.floor(Math.random() * 10);
+                    const expectedAns = (prevNum + nextNum) % 10;
+                    
+                    const group = document.createElement('div');
+                    group.className = 'item-group';
+                    
+                    if (r === 0) {
+                        const topDiv = document.createElement('div');
+                        topDiv.className = 'number';
+                        topDiv.innerText = prevNum;
+                        group.appendChild(topDiv);
+                    }
+
+                    const input = document.createElement('input');
+                    input.className = 'input-box';
+                    input.type = 'number';
+                    input.inputMode = 'numeric';
+                    input.maxLength = 1;
+                    input.dataset.col = c;
+                    input.dataset.row = r;
+                    input.dataset.ans = expectedAns;
+                    input.disabled = true;
+
+                    input.addEventListener('input', (e) => {
+                        let val = e.target.value;
+                        if (val.length > 1) { val = val.slice(-1); e.target.value = val; }
+                        if (!/^[0-9]$/.test(val)) { e.target.value = ''; return; }
+                        
+                        if (parseInt(val) === parseInt(e.target.dataset.ans)) {
+                            correctAnswers++;
+                        } else {
+                            wrongAnswers++;
+                        }
+                        
+                        const nextRow = r + 1;
+                        if (nextRow < NUMS_PER_COL) {
+                            const nextInput = document.querySelector(`input[data-col="${c}"][data-row="${nextRow}"]`);
+                            if(nextInput) nextInput.focus();
+                        }
+                    });
+
+                    const bottomDiv = document.createElement('div');
+                    bottomDiv.className = 'number';
+                    bottomDiv.innerText = nextNum;
+                    
+                    group.appendChild(input);
+                    group.appendChild(bottomDiv);
+                    colDiv.appendChild(group);
+
+                    prevNum = nextNum;
+                }
+                board.appendChild(colDiv);
+            }
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function startTest() {
+            if (isPlaying) return;
+            isPlaying = true;
+            document.getElementById('start-btn').disabled = true;
+            
+            activateColumn(0);
+
+            timer = setInterval(() => {
+                timeLeft--;
+                document.getElementById('time-display').innerText = formatTime(timeLeft);
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+
+            intervalTimer = setInterval(() => {
+                activeCol++;
+                if (activeCol < TOTAL_COLUMNS) {
+                    activateColumn(activeCol);
+                } else {
+                    endGame();
+                }
+            }, INTERVAL_TIME * 1000);
+        }
+
+        function activateColumn(colIndex) {
+            if (colIndex > 0) {
+                const prevCol = document.getElementById(`col-${colIndex-1}`);
+                prevCol.classList.remove('active');
+                prevCol.classList.add('done');
+                const prevInputs = prevCol.querySelectorAll('input');
+                prevInputs.forEach(inp => inp.disabled = true);
+            }
+
+            document.getElementById('col-display').innerText = colIndex + 1;
+            const current = document.getElementById(`col-${colIndex}`);
+            current.classList.add('active');
+            
+            const inputs = current.querySelectorAll('input');
+            inputs.forEach(inp => inp.disabled = false);
+            
+            setTimeout(() => {
+                inputs[0].focus();
+                current.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            }, 100);
+        }
+
+        function endGame() {
+            clearInterval(timer);
+            clearInterval(intervalTimer);
+            isPlaying = false;
+            
+            document.querySelectorAll('input').forEach(inp => inp.disabled = true);
+            document.getElementById('board-container').style.opacity = '0.1';
+            
+            const res = document.getElementById('results');
+            res.style.display = 'block';
+            document.getElementById('res-correct').innerText = correctAnswers;
+            document.getElementById('res-wrong').innerText = wrongAnswers;
+
+            // Simpan skor ke Local Storage browser
+            saveAndRenderHistory();
+        }
+
+        function saveAndRenderHistory() {
+            // Ambil riwayat sebelumnya (jika ada)
+            let history = JSON.parse(localStorage.getItem('tesKoranHistory')) || [];
+            
+            // Masukkan skor sesi ini ke riwayat
+            history.push(correctAnswers);
+            
+            // Simpan kembali ke Local Storage
+            localStorage.setItem('tesKoranHistory', JSON.stringify(history));
+
+            // Gambar Grafik
+            const ctx = document.getElementById('historyChart').getContext('2d');
+            const labels = history.map((_, i) => `Tes ${i + 1}`);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Skor (Jawaban Benar)',
+                        data: history,
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63, 185, 80, 0.2)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#3fb950',
+                        pointBorderColor: '#fff',
+                        pointRadius: 5,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#8b949e', stepSize: 5 },
+                            grid: { color: '#30363d' }
+                        },
+                        x: {
+                            ticks: { color: '#8b949e' },
+                            grid: { color: 'transparent' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#ededed' } }
+                    }
+                }
+            });
+        }
+
+        function clearHistory() {
+            if(confirm("Apakah Anda yakin ingin menghapus semua riwayat tes?")) {
+                localStorage.removeItem('tesKoranHistory');
+                location.reload();
+            }
+        }
+
+        initBoard();
+    </script>
+</body>
+</html>
